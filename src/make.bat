@@ -80,12 +80,15 @@ for /f "tokens=*" %%g in ('where go 2^>nul') do (
 		)
 	)
 )
-
-set bootgo=1.17.13
+set GOROOT_BOOTSTRAP=C:\Users\champion\go\go1.20.4
+set CGO_ENABLE=1
+echo %GOROOT_BOOTSTRAP%
+set bootgo=1.20.4
 if "x%GOROOT_BOOTSTRAP%"=="x" if exist "%HOMEDRIVE%%HOMEPATH%\go%bootgo%" set GOROOT_BOOTSTRAP=%HOMEDRIVE%%HOMEPATH%\go%bootgo%
 if "x%GOROOT_BOOTSTRAP%"=="x" if exist "%HOMEDRIVE%%HOMEPATH%\sdk\go%bootgo%" set GOROOT_BOOTSTRAP=%HOMEDRIVE%%HOMEPATH%\sdk\go%bootgo%
 if "x%GOROOT_BOOTSTRAP%"=="x" set GOROOT_BOOTSTRAP=%HOMEDRIVE%%HOMEPATH%\Go1.4
 
+echo %GOROOT_BOOTSTRAP%
 :bootstrapset
 if not exist "%GOROOT_BOOTSTRAP%\bin\go.exe" goto bootstrapfail
 set GOROOT=%GOROOT_TEMP%
@@ -104,6 +107,7 @@ set GOBIN=
 set GO111MODULE=off
 set GOENV=off
 set GOFLAGS=
+set GO_GCFLAGS="-N -l"
 "%GOROOT_BOOTSTRAP%\bin\go.exe" build -o cmd\dist\dist.exe .\cmd\dist
 endlocal
 if errorlevel 1 goto fail

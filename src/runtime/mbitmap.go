@@ -169,7 +169,7 @@ func (s *mspan) nextFreeIndex() uintptr {
 		return snelems
 	}
 
-	s.allocCache >>= uint(bitIndex + 1)
+	s.allocCache >>= uint(bitIndex + 1) //初始分配时候全部设置为1 把尾部的低位的bit去掉，因为以及分配出去了
 	sfreeindex = result + 1
 
 	if sfreeindex%64 == 0 && sfreeindex != snelems {

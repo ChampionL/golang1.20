@@ -210,13 +210,14 @@ const (
 	//
 	// WebAssembly currently has a limit of 4GB linear memory.
 	heapAddrBits = (_64bit*(1-goarch.IsWasm)*(1-goos.IsIos*goarch.IsArm64))*48 + (1-_64bit+goarch.IsWasm)*(32-(goarch.IsMips+goarch.IsMipsle)) + 40*goos.IsIos*goarch.IsArm64
+	// 堆的内存地址空间 对于位内存一般取48位,可以得到256T
 
 	// maxAlloc is the maximum size of an allocation. On 64-bit,
 	// it's theoretically possible to allocate 1<<heapAddrBits bytes. On
 	// 32-bit, however, this is one less than 1<<32 because the
 	// number of bytes in the address space doesn't actually fit
 	// in a uintptr.
-	maxAlloc = (1 << heapAddrBits) - (1-_64bit)*1
+	maxAlloc = (1 << heapAddrBits) - (1-_64bit)*1 //对于一般64位系统，最大内存一般就是256T
 
 	// The number of bits in a heap address, the size of heap
 	// arenas, and the L1 and L2 arena map sizes are related by
@@ -253,9 +254,9 @@ const (
 	// prefer using heapArenaBytes where possible (we need the
 	// constant to compute some other constants).
 	logHeapArenaBytes = (6+20)*(_64bit*(1-goos.IsWindows)*(1-goarch.IsWasm)*(1-goos.IsIos*goarch.IsArm64)) + (2+20)*(_64bit*goos.IsWindows) + (2+20)*(1-_64bit) + (2+20)*goarch.IsWasm + (2+20)*goos.IsIos*goarch.IsArm64
-
+	//对于amd64来说就是 26位
 	// heapArenaBitmapWords is the size of each heap arena's bitmap in uintptrs.
-	heapArenaBitmapWords = heapArenaWords / (8 * goarch.PtrSize)
+	heapArenaBitmapWords = heapArenaWords / (8 * goarch.PtrSize) //每个bit表示一个word的使用情况
 
 	pagesPerArena = heapArenaBytes / pageSize
 
@@ -281,7 +282,7 @@ const (
 	// 1<<arenaL2Bits, so it's important that this not be too
 	// large. 48 bits leads to 32MB arena index allocations, which
 	// is about the practical threshold.
-	arenaL2Bits = heapAddrBits - logHeapArenaBytes - arenaL1Bits
+	arenaL2Bits = heapAddrBits - logHeapArenaBytes - arenaL1Bits // heapAddrBits一般是48位，logHeapArenaBytes一般是26位 arenaL1Bits 是0  那么L2就只有22位
 
 	// arenaL1Shift is the number of bits to shift an arena frame
 	// number by to compute an index into the first level arena map.
@@ -307,7 +308,7 @@ const (
 	//
 	// On other platforms, the user address space is contiguous
 	// and starts at 0, so no offset is necessary.
-	arenaBaseOffset = 0xffff800000000000*goarch.IsAmd64 + 0x0a00000000000000*goos.IsAix
+	arenaBaseOffset = 0xffff800000000000*goarch.IsAmd64 + 0x0a00000000000000*goos.IsAix //对于amd64 和 aix起始位置不太一样，对于其他系统arena起始位置为0，每个arena为64MB
 	// A typed version of this constant that will make it into DWARF (for viewcore).
 	arenaBaseOffsetUintptr = uintptr(arenaBaseOffset)
 
@@ -823,11 +824,11 @@ func nextFreeFast(s *mspan) gclinkptr {
 			freeidx := result + 1
 			if freeidx%64 == 0 && freeidx != s.nelems {
 				return 0
-			}
+			} //freeidx % 64 !=0 或者freeidx == s.nelems  // freeindex  就是空闲位置的元素的位置索引
 			s.allocCache >>= uint(theBit + 1)
 			s.freeindex = freeidx
 			s.allocCount++
-			return gclinkptr(result*s.elemsize + s.base())
+			return gclinkptr(result*s.elemsize + s.base()) //mspan的基始地址是s.base 里面没个大小是s.elemsize  result表示的是这个起始位置   allocache表示的是mspan里面 每个elem是否使用
 		}
 	}
 	return 0
@@ -845,7 +846,7 @@ func nextFreeFast(s *mspan) gclinkptr {
 func (c *mcache) nextFree(spc spanClass) (v gclinkptr, s *mspan, shouldhelpgc bool) {
 	s = c.alloc[spc]
 	shouldhelpgc = false
-	freeIndex := s.nextFreeIndex()
+	freeIndex := s.nextFreeIndex() //freeIndex是下一个可以释放空间的位置  返回freeIndex 然后在后面
 	if freeIndex == s.nelems {
 		// The span is full.
 		if uintptr(s.allocCount) != s.nelems {
@@ -932,7 +933,7 @@ func mallocgc(size uintptr, typ *_type, needzero bool) unsafe.Pointer {
 	assistG := deductAssistCredit(size)
 
 	// Set mp.mallocing to keep from being preempted by GC.
-	mp := acquirem()
+	mp := acquirem() //获取当面goroutine的mcache
 	if mp.mallocing != 0 {
 		throw("malloc deadlock")
 	}
@@ -943,7 +944,7 @@ func mallocgc(size uintptr, typ *_type, needzero bool) unsafe.Pointer {
 
 	shouldhelpgc := false
 	dataSize := userSize
-	c := getMCache(mp)
+	c := getMCache(mp) //获取p的 mcache      *mcache
 	if c == nil {
 		throw("mallocgc called without a P or outside bootstrapping")
 	}
@@ -954,7 +955,7 @@ func mallocgc(size uintptr, typ *_type, needzero bool) unsafe.Pointer {
 	// be delayed till preemption is possible; delayedZeroing tracks that state.
 	delayedZeroing := false
 	if size <= maxSmallSize {
-		if noscan && size < maxTinySize {
+		if noscan && size < maxTinySize { //不含有指针，小于16字节对象
 			// Tiny allocator.
 			//
 			// Tiny allocator combines several tiny allocation requests
@@ -974,7 +975,7 @@ func mallocgc(size uintptr, typ *_type, needzero bool) unsafe.Pointer {
 			//
 			// Objects obtained from tiny allocator must not be freed explicitly.
 			// So when an object will be freed explicitly, we ensure that
-			// its size >= maxTinySize.
+			// its size >= maxTinySize. // 当对象小于16字节时候，我们不能直接释放该对象，因为小于16字节对象会通过小对象物体来进行合并到一个16字节对象里
 			//
 			// SetFinalizer has a special case for objects potentially coming
 			// from tiny allocator, it such case it allows to set finalizers
@@ -986,8 +987,8 @@ func mallocgc(size uintptr, typ *_type, needzero bool) unsafe.Pointer {
 			// reduces heap size by ~20%.
 			off := c.tinyoffset
 			// Align tiny pointer for required (conservative) alignment.
-			if size&7 == 0 {
-				off = alignUp(off, 8)
+			if size&7 == 0 { //大于等于8字节，那么找到对应2的次幂 2^3 2^4
+				off = alignUp(off, 8) //调整off成8倍数
 			} else if goarch.PtrSize == 4 && size == 12 {
 				// Conservatively align 12-byte objects to 8 bytes on 32-bit
 				// systems so that objects whose first field is a 64-bit
@@ -995,15 +996,15 @@ func mallocgc(size uintptr, typ *_type, needzero bool) unsafe.Pointer {
 				// atomic access. See issue 37262.
 				// TODO(mknyszek): Remove this workaround if/when issue 36606
 				// is resolved.
-				off = alignUp(off, 8)
-			} else if size&3 == 0 {
-				off = alignUp(off, 4)
+				off = alignUp(off, 8) //调整off成8倍数
+			} else if size&3 == 0 { //大于
+				off = alignUp(off, 4) //调整off成4倍数
 			} else if size&1 == 0 {
-				off = alignUp(off, 2)
+				off = alignUp(off, 2) //调整off成2倍数
 			}
-			if off+size <= maxTinySize && c.tiny != 0 {
+			if off+size <= maxTinySize && c.tiny != 0 { //如果off+size大小小于16字节，并且tiny模块有分配内存块，那么在该tiny块上分配
 				// The object fits into existing tiny block.
-				x = unsafe.Pointer(c.tiny + off)
+				x = unsafe.Pointer(c.tiny + off) //tiny加上偏移量就是需要分配内存
 				c.tinyoffset = off + size
 				c.tinyAllocs++
 				mp.mallocing = 0
@@ -1011,17 +1012,17 @@ func mallocgc(size uintptr, typ *_type, needzero bool) unsafe.Pointer {
 				return x
 			}
 			// Allocate a new maxTinySize block.
-			span = c.alloc[tinySpanClass]
-			v := nextFreeFast(span)
+			span = c.alloc[tinySpanClass] // tiny对象需要分配16字节 tinySpanClass = 2<<1 + 1 等于 5(136) 从mcache的alloc中获取mspan
+			v := nextFreeFast(span)       //从mspan中获取一个对象块
 			if v == 0 {
-				v, span, shouldhelpgc = c.nextFree(tinySpanClass)
+				v, span, shouldhelpgc = c.nextFree(tinySpanClass) //如果mcache中对应的mspan以及没有了
 			}
 			x = unsafe.Pointer(v)
-			(*[2]uint64)(x)[0] = 0
+			(*[2]uint64)(x)[0] = 0 //16个字节全部设置为0
 			(*[2]uint64)(x)[1] = 0
 			// See if we need to replace the existing tiny block with the new one
 			// based on amount of remaining free space.
-			if !raceenabled && (size < c.tinyoffset || c.tiny == 0) {
+			if !raceenabled && (size < c.tinyoffset || c.tiny == 0) { //go编译时候没带上-race就是false
 				// Note: disabled when race detector is on, see comment near end of this function.
 				c.tiny = uintptr(x)
 				c.tinyoffset = size
@@ -1029,12 +1030,12 @@ func mallocgc(size uintptr, typ *_type, needzero bool) unsafe.Pointer {
 			size = maxTinySize
 		} else {
 			var sizeclass uint8
-			if size <= smallSizeMax-8 {
+			if size <= smallSizeMax-8 { //size_to_class8是一个速查表，查看size对应的类型，小于1024-8字节时候分得比较细致，超过1024-8则划分得比较粗，128字节为一个单位
 				sizeclass = size_to_class8[divRoundUp(size, smallSizeDiv)]
 			} else {
 				sizeclass = size_to_class128[divRoundUp(size-smallSizeMax, largeSizeDiv)]
 			}
-			size = uintptr(class_to_size[sizeclass])
+			size = uintptr(class_to_size[sizeclass]) //找出对于class 对象大小，变更为申请内存大小 到实际分配的class内存
 			spc := makeSpanClass(sizeclass, noscan)
 			span = c.alloc[spc]
 			v := nextFreeFast(span)
@@ -1050,7 +1051,7 @@ func mallocgc(size uintptr, typ *_type, needzero bool) unsafe.Pointer {
 		shouldhelpgc = true
 		// For large allocations, keep track of zeroed state so that
 		// bulk zeroing can be happen later in a preemptible context.
-		span = c.allocLarge(size, noscan)
+		span = c.allocLarge(size, noscan) //直接挂在index为0的class下
 		span.freeindex = 1
 		span.allocCount = 1
 		size = span.elemsize

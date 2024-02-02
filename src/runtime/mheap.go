@@ -235,7 +235,7 @@ type heapArena struct {
 	// bitmap stores the pointer/scalar bitmap for the words in
 	// this arena. See mbitmap.go for a description.
 	// This array uses 1 bit per word of heap, or 1.6% of the heap size (for 64-bit).
-	bitmap [heapArenaBitmapWords]uintptr
+	bitmap [heapArenaBitmapWords]uintptr //用1bit表示其中8字节(64)的使用情况，4字节(非64位)的使用情况  整个heapArena区域64M 分成每个word是否在使用，表示一个word的使用情况
 
 	// If the ith bit of noMorePtrs is true, then there are no more
 	// pointers for the object containing the word described by the
@@ -261,7 +261,7 @@ type heapArena struct {
 	// known to contain in-use or stack spans. This means there
 	// must not be a safe-point between establishing that an
 	// address is live and looking it up in the spans array.
-	spans [pagesPerArena]*mspan
+	spans [pagesPerArena]*mspan // pagesPerArena 每个arena有多少个page arena是 heapArenaBytes / pageSize  heapArenaBytes 是64位，pageSize是8kb  可能多个page页面指向的是同一个mspan指针
 
 	// pageInUse is a bitmap that indicates which spans are in
 	// state mSpanInUse. This bitmap is indexed by page number,
@@ -439,8 +439,9 @@ type mspan struct {
 	// ctz (count trailing zero) to use it directly.
 	// allocCache may contain bits beyond s.nelems; the caller must ignore
 	// these.
-	allocCache uint64
-
+	//allocCache  为1标识都是free状态
+	allocCache uint64 //allocCache 字段用于计算 freeindex 上的 allocBits 缓存，allocCache 进行了移位使其最低位对应于 freeindex 位  //allocCache是由allocBits  在freeIndex/8 个字节开始 连续8个字节的分配位图低位代表低地址的对象是否被占用，0表示
+	// allocCache 如果是0 那么说明所有块都被占用了  allocCache 如果是0 说明这个位置是否可用 allocCache may contain bits beyond s.nelems; the caller must ignore因为多移位出来的
 	// allocBits and gcmarkBits hold pointers to a span's mark and
 	// allocation bits. The pointers are 8 byte aligned.
 	// There are three arenas where this data is held.
@@ -463,8 +464,8 @@ type mspan struct {
 	// The sweep will free the old allocBits and set allocBits to the
 	// gcmarkBits. The gcmarkBits are replaced with a fresh zeroed
 	// out memory.
-	allocBits  *gcBits
-	gcmarkBits *gcBits
+	allocBits  *gcBits //是一个uint8的数组低位是代表第一个object是否被使用  高位代表的是最后一个对象是否被使用，是一个
+	gcmarkBits *gcBits //也是一个uint8数组，低位代表是第一个Object是否被使用 高位代表是最后一个对象是否被使用
 
 	// sweep generation:
 	// if sweepgen == h->sweepgen - 2, the span needs sweeping
@@ -523,7 +524,7 @@ func (s *mspan) layout() (size, n, total uintptr) {
 // The heap lock must be held.
 //
 //go:nowritebarrierrec
-func recordspan(vh unsafe.Pointer, p unsafe.Pointer) {
+func recordspan(vh unsafe.Pointer, p unsafe.Pointer) { //记录所有分配的mspan，存储到h.allspans里，如果slice空间不足，那么申请64k内存用于存储*mspan指针
 	h := (*mheap)(vh)
 	s := (*mspan)(p)
 
@@ -630,7 +631,7 @@ func (i arenaIdx) l2() uint {
 	if arenaL1Bits == 0 {
 		return uint(i)
 	} else {
-		return uint(i) & (1<<arenaL2Bits - 1)
+		return uint(i) & (1<<arenaL2Bits - 1) //对这个值去余
 	}
 }
 
@@ -1397,7 +1398,7 @@ func (h *mheap) initSpan(s *mspan, typ spanAllocType, spanclass spanClass, base,
 		// Initialize mark and allocation structures.
 		s.freeindex = 0
 		s.freeIndexForScan = 0
-		s.allocCache = ^uint64(0) // all 1s indicating all free.
+		s.allocCache = ^uint64(0) // all 1s indicating all free. //allocache全部是1意味着object都是free 所有对象都是可以分配的，右移则是补 说明是不存在的
 		s.gcmarkBits = newMarkBits(s.nelems)
 		s.allocBits = newAllocBits(s.nelems)
 
