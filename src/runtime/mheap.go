@@ -65,7 +65,7 @@ type mheap struct {
 	// could self-deadlock if its stack grows with the lock held.
 	lock mutex
 
-	pages pageAlloc // page allocation data structure
+	pages pageAlloc // page allocation data structure  //是mheap的内存分配器
 
 	sweepgen uint32 // sweep generation, see comment in mspan; written during STW
 
@@ -142,7 +142,7 @@ type mheap struct {
 	// platforms (even 64-bit), arenaL1Bits is 0, making this
 	// effectively a single-level map. In this case, arenas[0]
 	// will never be nil.
-	arenas [1 << arenaL1Bits]*[1 << arenaL2Bits]*heapArena
+	arenas [1 << arenaL1Bits]*[1 << arenaL2Bits]*heapArena //该数组有2^22个元素 arenaL2Bits 为22
 
 	// heapArenaAlloc is pre-reserved space for allocating heapArena
 	// objects. This is only used on 32-bit, where we pre-reserve
@@ -440,7 +440,7 @@ type mspan struct {
 	// allocCache may contain bits beyond s.nelems; the caller must ignore
 	// these.
 	//allocCache  为1标识都是free状态
-	allocCache uint64 //allocCache 字段用于计算 freeindex 上的 allocBits 缓存，allocCache 进行了移位使其最低位对应于 freeindex 位  //allocCache是由allocBits  在freeIndex/8 个字节开始 连续8个字节的分配位图低位代表低地址的对象是否被占用，0表示
+	allocCache uint64 // 来源于  allocBits  表示占位符号 allocCache 字段用于计算 freeindex 上的 allocBits 缓存，allocCache 进行了移位使其最低位对应于 freeindex 位  //allocCache是由allocBits  在freeIndex/8 个字节开始 连续8个字节的分配位图低位代表低地址的对象是否被占用，0表示
 	// allocCache 如果是0 那么说明所有块都被占用了  allocCache 如果是0 说明这个位置是否可用 allocCache may contain bits beyond s.nelems; the caller must ignore因为多移位出来的
 	// allocBits and gcmarkBits hold pointers to a span's mark and
 	// allocation bits. The pointers are 8 byte aligned.
@@ -1219,7 +1219,7 @@ func (h *mheap) allocSpan(npages uintptr, typ spanAllocType, spanclass spanClass
 		// Note that we skip updates to searchAddr here. It's OK if
 		// it's stale and higher than normal; it'll operate correctly,
 		// just come with a performance cost.
-		base, _ = h.pages.find(npages + extraPages)
+		base, _ = h.pages.find(npages + extraPages) //通过构建的基数树寻找到合适的地址空间
 		if base == 0 {
 			var ok bool
 			growth, ok = h.grow(npages + extraPages)
@@ -2108,8 +2108,8 @@ func (b *gcBitsArena) tryAlloc(bytes uintptr) *gcBits {
 // newMarkBits returns a pointer to 8 byte aligned bytes
 // to be used for a span's mark bits.
 func newMarkBits(nelems uintptr) *gcBits {
-	blocksNeeded := uintptr((nelems + 63) / 64)
-	bytesNeeded := blocksNeeded * 8
+	blocksNeeded := uintptr((nelems + 63) / 64) //总的元素是nelems 总共需要nelems个bit来表示这些元素 64是chunk的大小
+	bytesNeeded := blocksNeeded * 8             //(nelems+8)/8 // 需要字节数
 
 	// Try directly allocating from the current head arena.
 	head := (*gcBitsArena)(atomic.Loadp(unsafe.Pointer(&gcBitsArenas.next)))

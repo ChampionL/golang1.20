@@ -77,7 +77,7 @@ func (c *mcentral) fullSwept(sweepgen uint32) *spanSet {
 	return &c.full[sweepgen/2%2]
 }
 
-// Allocate a span to use in an mcache.
+// Allocate a span to use in an mcache. //分配span并且和内存块用于存储mspan
 func (c *mcentral) cacheSpan() *mspan {
 	// Deduct credit for this span allocation and sweep if necessary.
 	spanBytes := uintptr(class_to_allocnpages[c.spanclass.sizeclass()]) * _PageSize
@@ -163,7 +163,7 @@ func (c *mcentral) cacheSpan() *mspan {
 	}
 
 	// We failed to get a span from the mcentral so get one from mheap.
-	s = c.grow()
+	s = c.grow() //此函数向mheap申请大块连续内存
 	if s == nil {
 		return nil
 	}
@@ -177,8 +177,8 @@ havespan:
 	if n == 0 || s.freeindex == s.nelems || uintptr(s.allocCount) == s.nelems {
 		throw("span has no free objects")
 	}
-	freeByteBase := s.freeindex &^ (64 - 1)
-	whichByte := freeByteBase / 8
+	freeByteBase := s.freeindex &^ (64 - 1) //&^位清楚操作，bit为1则进行清楚 为0则进行保留 将freeindex后面六位都设置为0
+	whichByte := freeByteBase / 8           //位置除以8 等于第几个字节开始复制
 	// Init alloc bits cache.
 	s.refillAllocCache(whichByte)
 
@@ -239,7 +239,7 @@ func (c *mcentral) uncacheSpan(s *mspan) {
 }
 
 // grow allocates a new empty span from the heap and initializes it for c's size class.
-func (c *mcentral) grow() *mspan {
+func (c *mcentral) grow() *mspan { //mcentral由此向mheap申请连续指定类型的内存
 	npages := uintptr(class_to_allocnpages[c.spanclass.sizeclass()])
 	size := uintptr(class_to_size[c.spanclass.sizeclass()])
 

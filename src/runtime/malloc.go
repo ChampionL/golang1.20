@@ -283,7 +283,7 @@ const (
 	// large. 48 bits leads to 32MB arena index allocations, which
 	// is about the practical threshold.
 	arenaL2Bits = heapAddrBits - logHeapArenaBytes - arenaL1Bits // heapAddrBits一般是48位，logHeapArenaBytes一般是26位 arenaL1Bits 是0  那么L2就只有22位
-
+	//一个heapArena是64M(26bit) 所以arenaL2Bits 是48-26 = 22位
 	// arenaL1Shift is the number of bits to shift an arena frame
 	// number by to compute an index into the first level arena map.
 	arenaL1Shift = arenaL2Bits
@@ -842,7 +842,7 @@ func nextFreeFast(s *mspan) gclinkptr {
 // whether this goroutine needs to assist the GC.
 //
 // Must run in a non-preemptible context since otherwise the owner of
-// c could change.
+// c could change. //nextFree会去调用mcache进行内存申请 nextFree 则在mallocgc中进行调用
 func (c *mcache) nextFree(spc spanClass) (v gclinkptr, s *mspan, shouldhelpgc bool) {
 	s = c.alloc[spc]
 	shouldhelpgc = false
@@ -864,7 +864,7 @@ func (c *mcache) nextFree(spc spanClass) (v gclinkptr, s *mspan, shouldhelpgc bo
 		throw("freeIndex is not valid")
 	}
 
-	v = gclinkptr(freeIndex*s.elemsize + s.base())
+	v = gclinkptr(freeIndex*s.elemsize + s.base()) //获得元素位置后结合 base地址以及元素大小 就可以计算出分配元素的地址
 	s.allocCount++
 	if uintptr(s.allocCount) > s.nelems {
 		println("s.allocCount=", s.allocCount, "s.nelems=", s.nelems)
@@ -1051,7 +1051,7 @@ func mallocgc(size uintptr, typ *_type, needzero bool) unsafe.Pointer {
 		shouldhelpgc = true
 		// For large allocations, keep track of zeroed state so that
 		// bulk zeroing can be happen later in a preemptible context.
-		span = c.allocLarge(size, noscan) //直接挂在index为0的class下
+		span = c.allocLarge(size, noscan) //直接挂在index为0的class下 //此函数会找mheap申请大额内存
 		span.freeindex = 1
 		span.allocCount = 1
 		size = span.elemsize

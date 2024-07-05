@@ -119,6 +119,7 @@ func (s *mspan) allocBitsForIndex(allocBitIndex uintptr) markBits {
 // s.allocCache.
 func (s *mspan) refillAllocCache(whichByte uintptr) {
 	bytes := (*[8]uint8)(unsafe.Pointer(s.allocBits.bytep(whichByte)))
+	//也就是从这个mspan的alloBits的机制开始第whichByte个字节 这些bit全部复制过来 每个bit代表这个mspan中这个span class中这个元素是否可以用
 	aCache := uint64(0)
 	aCache |= uint64(bytes[0])
 	aCache |= uint64(bytes[1]) << (1 * 8)
@@ -128,14 +129,14 @@ func (s *mspan) refillAllocCache(whichByte uintptr) {
 	aCache |= uint64(bytes[5]) << (5 * 8)
 	aCache |= uint64(bytes[6]) << (6 * 8)
 	aCache |= uint64(bytes[7]) << (7 * 8)
-	s.allocCache = ^aCache
+	s.allocCache = ^aCache //allocCache是从mspan的allocBits[gcBits]中获取的
 }
 
 // nextFreeIndex returns the index of the next free object in s at
 // or after s.freeindex.
 // There are hardware instructions that can be used to make this
 // faster if profiling warrants it.
-func (s *mspan) nextFreeIndex() uintptr {
+func (s *mspan) nextFreeIndex() uintptr { // 每个元素都是同等大小，记录元素位置就可以，没有大小的说法
 	sfreeindex := s.freeindex
 	snelems := s.nelems
 	if sfreeindex == snelems {
@@ -147,7 +148,7 @@ func (s *mspan) nextFreeIndex() uintptr {
 
 	aCache := s.allocCache
 
-	bitIndex := sys.TrailingZeros64(aCache)
+	bitIndex := sys.TrailingZeros64(aCache) //0表示已经在使用 1表示free
 	for bitIndex == 64 {
 		// Move index to start of next cached bits.
 		sfreeindex = (sfreeindex + 64) &^ (64 - 1)
@@ -414,15 +415,15 @@ func heapBitsForAddr(addr, size uintptr) heapBits {
 
 	// Grab relevant bits of bitmap.
 	mask := ha.bitmap[idx] >> off
-	valid := ptrBits - off
+	valid := ptrBits - off //右移了off位，还剩多少个有效位数
 
 	// Process depending on where the object ends.
 	nptr := size / goarch.PtrSize
-	if nptr < valid {
+	if nptr < valid { // 要拿到的bitmap的大小小于有效的位数，说明当前比特的字节就足够了
 		// Bits for this object end before the end of this bitmap word.
 		// Squash bits for the following objects.
-		mask &= 1<<(nptr&(ptrBits-1)) - 1
-		valid = nptr
+		mask &= 1<<(nptr&(ptrBits-1)) - 1 //保留mask的最低nptr位
+		valid = nptr                      //有效位数是nptr
 	} else if nptr == valid {
 		// Bits for this object end at exactly the end of this bitmap word.
 		// All good.
@@ -434,6 +435,7 @@ func heapBitsForAddr(addr, size uintptr) heapBits {
 			// Update size so we know not to look there.
 			size = valid * goarch.PtrSize
 		}
+		//如果noMorePtrs为1说明后面没有指针
 	}
 
 	return heapBits{addr: addr, size: size, mask: mask, valid: valid}

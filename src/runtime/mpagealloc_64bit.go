@@ -47,7 +47,7 @@ var levelBits = [summaryLevels]uint{
 //
 //	p >> levelShift[l]
 var levelShift = [summaryLevels]uint{
-	heapAddrBits - summaryL0Bits,
+	heapAddrBits - summaryL0Bits, // heapAddrBits 是48位  summaryL0Bits 计算结果是 48 -22 -4*3 = 14  https://cloud.tencent.com/developer/article/2072908 https://cloud.tencent.com/developer/article/2072908
 	heapAddrBits - summaryL0Bits - 1*summaryLevelBits,
 	heapAddrBits - summaryL0Bits - 2*summaryLevelBits,
 	heapAddrBits - summaryL0Bits - 3*summaryLevelBits,
