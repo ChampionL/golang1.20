@@ -3,6 +3,8 @@
 // license that can be found in the LICENSE file.
 
 // Page allocator.
+// 基数树  radix树
+// https://ivanzz1001.github.io/records/post/data-structure/2018/11/18/ds-radix-tree#2-linux%E5%9F%BA%E6%95%B0%E6%A0%91
 //
 // The page allocator manages mapped pages (defined by pageSize, NOT
 // physPageSize) for allocation and re-use. It is embedded into mheap.
@@ -911,7 +913,8 @@ const (
 // a bitmap and are thus counts, each of which may have a maximum value of
 // 2^21 - 1, or all three may be equal to 2^21. The latter case is represented
 // by just setting the 64th bit.
-type pallocSum uint64
+type pallocSum uint64 // 最右侧21比特表示 start  中间21 bit表示 max  最左21比特表示 end 最左边bit丢弃不用  // https://blog.csdn.net/hellozhxy/article/details/131049038
+// https://go.googlesource.com/proposal/+/master/design/35112-scaling-the-page-allocator.md
 
 // packPallocSum takes a start, max, and end value and produces a pallocSum.
 func packPallocSum(start, max, end uint) pallocSum {

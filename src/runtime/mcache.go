@@ -179,7 +179,7 @@ func (c *mcache) refill(spc spanClass) {
 	}
 
 	// Get a new cached span from the central lists.
-	s = mheap_.central[spc].mcentral.cacheSpan()
+	s = mheap_.central[spc].mcentral.cacheSpan() //此处开始申请内存  refill和allocLarge都是mcache中的操作，内存入口都在mcache里面
 	if s == nil {
 		throw("out of memory")
 	}
@@ -231,7 +231,7 @@ func (c *mcache) allocLarge(size uintptr, noscan bool) *mspan {
 	deductSweepCredit(npages*_PageSize, npages)
 
 	spc := makeSpanClass(0, noscan)
-	s := mheap_.alloc(npages, spc)
+	s := mheap_.alloc(npages, spc) //mcache由此向mheap申请大额内存
 	if s == nil {
 		throw("out of memory")
 	}
